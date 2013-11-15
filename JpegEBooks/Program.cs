@@ -1,12 +1,20 @@
- using System;
+using System;
+using TweetinCore.Interfaces.TwitterToken;
+using Tweetinvi;
+using TwitterToken;
 
 namespace JpegEBooks
 {
 	class MainClass
 	{
-		public static void Main (string[] args)
+		public IToken AcquireTokenFromEnv()
 		{
-			Console.WriteLine ("Hello World!");
+			return null;
+		}
+
+		public static void Main(string[] args)
+		{
+
 		}
 	}
 }

@@ -7,14 +7,14 @@ using System.Text;
 
 namespace JpegEBooks.ImageModel
 {
-    class KDMap<Coord, V> where Coord : IComparable<Coord>, IEquatable<Coord>
+    class KDMap<V>
     {
         public KDMap(int k)
         {
             this.k = k;
         }
 
-        public void Insert(Coord[] position, V value)
+        public void Insert(double[] position, V value)
         {
             if (position.Length != this.k)
             {
@@ -33,7 +33,7 @@ namespace JpegEBooks.ImageModel
             }
         }
 
-        public V Get(Coord[] position)
+        public V Get(double[] position)
         {
             if (this.root == null)
             {
@@ -54,6 +54,18 @@ namespace JpegEBooks.ImageModel
             }
         }
 
+        public V[] RangeSearch(double[] position, double radius)
+        {
+            if (this.root == null)
+            {
+                return new V[] { };
+            }
+            else
+            {
+                return this.root.RangeSearch(0, this.k, position, radius).Select((node) => node.Value).ToArray();
+            }
+        }
+
         public int Count()
         {
             return (this.root != null) ? this.root.Count() : 0;
@@ -61,20 +73,20 @@ namespace JpegEBooks.ImageModel
 
         private class Node
         {
-            public Node(Coord[] position, V value)
+            public Node(double[] position, V value)
             {
                 this.Position = position;
                 this.Value = value;
             }
 
-            public readonly Coord[] Position;
+            public readonly double[] Position;
 
             public Node Left;
             public Node Right;
 
             public readonly V Value;
 
-            public Node Insert(int depth, int k, Coord[] position, V value)
+            public Node Insert(int depth, int k, double[] position, V value)
             {
                 // check to make sure this node isn't already at the new node's position
                 if (StructuralComparisons.StructuralEqualityComparer.Equals(position, this.Position))
@@ -84,8 +96,8 @@ namespace JpegEBooks.ImageModel
 
                 // figure out whether position is before or after this node
                 int dimension = depth % k;
-                Coord rootLocation = this.Position[dimension];
-                Coord location = position[dimension];
+                double rootLocation = this.Position[dimension];
+                double location = position[dimension];
 
                 // add new node to the subtree rooted here
                 if (location.CompareTo(rootLocation) < 0)
@@ -124,7 +136,7 @@ namespace JpegEBooks.ImageModel
                 }
             }
 
-            public Node Get(int depth, int k, Coord[] position)
+            public Node Get(int depth, int k, double[] position)
             {
                 // check to see if we're already there
                 if (StructuralComparisons.StructuralEqualityComparer.Equals(position, this.Position))
@@ -134,8 +146,8 @@ namespace JpegEBooks.ImageModel
 
                 // figure out whether position is before or after this node
                 int dimension = depth % k;
-                Coord rootLocation = this.Position[dimension];
-                Coord location = position[dimension];
+                double rootLocation = this.Position[dimension];
+                double location = position[dimension];
 
                 // search within child subtrees
                 if (location.CompareTo(rootLocation) < 0)
@@ -166,6 +178,68 @@ namespace JpegEBooks.ImageModel
                         return this.Right.Get(depth + 1, k, position);
                     }
                 }
+            }
+
+            public IList<Node> RangeSearch(int depth, int k, double[] position, double radius)
+            {
+                //StringBuilder sb = new StringBuilder();
+                //sb.Append("[");
+
+                //for (int i = 0; i < k; i++) {
+                //    sb.Append(position[i]);
+                //    sb.Append(", ");
+                //}
+
+                //sb.Append("]");
+
+                //Console.WriteLine("RangeSearch({0}, {1}, {2}, {3})", depth, k, sb.ToString(), radius);
+
+                // check whether the root is within radius of position
+                List<Node> values = new List<Node>();
+                double dist = 0;
+
+                for (int i = 0; i < k; i++)
+                {
+                    dist += Math.Pow((position[i] - this.Position[i]), 2);
+                }
+
+                if (dist <= radius * radius)
+                {
+                    values.Add(this);
+                }
+
+                // recurse to subtrees
+                // "before" subtree: if position + radius is before the root, prune
+                // "after" subtree: if position - radius is after the root, prune
+                int dimension = depth % k;
+                double location = this.Position[dimension];
+                double searchLocation = position[dimension];
+
+                //if (searchLocation + radius >= location)
+                //{
+                    if (this.Left != null)
+                    {
+                        values.AddRange(this.Left.RangeSearch(depth + 1, k, position, radius));
+                    }
+                //}
+                //else
+                //{
+                //    //Console.WriteLine("pruned left subtree ({0} + {1} < {2})", searchLocation, radius, location);
+                //}
+
+                //if (searchLocation - radius <= location)
+                //{
+                    if (this.Right != null)
+                    {
+                        values.AddRange(this.Right.RangeSearch(depth + 1, k, position, radius));
+                    }
+                //}
+                //else
+                //{
+                //    //Console.WriteLine("pruned right subtree ({0} - {1} > {2})", searchLocation, radius, location);
+                //}
+
+                return values;
             }
             
             public int Count()

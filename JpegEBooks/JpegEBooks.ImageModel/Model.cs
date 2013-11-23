@@ -11,11 +11,11 @@ namespace JpegEBooks.ImageModel
         {
             this.maxN = maxN;
             this.nullaryModel = new SuccessorTileModel();
-            this.naryModels = new KDMap<double, SuccessorTileModel>[maxN];
+            this.naryModels = new KDMap<SuccessorTileModel>[maxN];
 
             for (int i = 1; i <= maxN; i++)
             {
-                this.naryModels[i - 1] = new KDMap<double, SuccessorTileModel>(3 * i);
+                this.naryModels[i - 1] = new KDMap<SuccessorTileModel>(3 * i);
             }
         }
 
@@ -23,29 +23,47 @@ namespace JpegEBooks.ImageModel
         {
             public SuccessorTileModel()
             {
-                this.counts = new Dictionary<Color[,], int>(TwoDimensionalArrayStructuralEqualityComparer<Color>.Instance);
+                this.counts = new Dictionary<Color[,], double>(TwoDimensionalArrayStructuralEqualityComparer<Color>.Instance);
                 this.grandTotal = 0;
             }
 
             public void Add(Color[,] tile) 
             {
+                this.AddWeight(tile, 1.0);
+            }
+
+            private void AddWeight(Color[,] tile, double weight)
+            {
                 if (this.counts.ContainsKey(tile))
                 {
-                    this.counts[tile] += 1;
+                    this.counts[tile] += weight;
                 }
                 else
                 {
-                    this.counts[tile] = 1;
+                    this.counts[tile] = weight;
                 }
 
-                this.grandTotal += 1;
+                this.grandTotal += weight;
+            }
+
+            /// <summary>
+            ///     Add every element from the other model, with weights multiplied by the rate
+            /// </summary>
+            /// <param name="model">the model whose elements should be added</param>
+            /// <param name="rate">the rate to weight model's elements by, with 1.0 the default</param>
+            public void AddAll(SuccessorTileModel model, double rate = 1.0)
+            {
+                foreach (KeyValuePair<Color[,], double> kvp in model.counts)
+                {
+                    this.AddWeight(kvp.Key, kvp.Value * rate);
+                }
             }
 
             public Color[,] ChooseRandomly(Random rng)
             {
-                int rand = rng.Next(grandTotal);
+                double rand = rng.NextDouble() * grandTotal;
 
-                foreach (KeyValuePair<Color[,], int> tile in this.counts)
+                foreach (KeyValuePair<Color[,], double> tile in this.counts)
                 {
                     if (rand < tile.Value)
                     {
@@ -60,8 +78,8 @@ namespace JpegEBooks.ImageModel
                 return null;
             }
 
-            private Dictionary<Color[,], int> counts;
-            private int grandTotal;
+            private Dictionary<Color[,], double> counts;
+            private double grandTotal;
         }
 
         private int TILE_SIZE = 4;
@@ -106,6 +124,20 @@ namespace JpegEBooks.ImageModel
             return components;
         }
 
+        private double[] ModelPosition(Bitmap image, int xTile, int yTile, int tileSize, int modelArity)
+        {
+            double[] pos = new double[modelArity * 3];
+
+            for (int i = 1; i <= modelArity; i++)
+            {
+                double[] avgColor = AverageColor(image, TILE_SIZE, xTile - i, yTile);
+
+                Array.Copy(avgColor, 0, pos, (i - 1) * 3, 3);
+            }
+
+            return pos;
+        }
+
         public void LoadImage(Bitmap image)
         {
             // ersatz implementation for right now:
@@ -117,18 +149,10 @@ namespace JpegEBooks.ImageModel
                 {
                     // extract this tile
                     Color[,] thisSubimage = ExtractSubimage(image, TILE_SIZE, x, y);
-                    
+            
                     // figure out how many tiles of color data are actually available
-                    // and extract average colors for tiles preceding this one
                     int actualArity = Math.Min(x, this.maxN);
-                    double[] pos = new double[actualArity * 3];
-
-                    for (int i = 1; i <= actualArity; i++)
-                    {
-                        double[] avgColor = AverageColor(image, TILE_SIZE, x - i, y);
-
-                        Array.Copy(avgColor, 0, pos, (i - 1) * 3, 3);
-                    }
+                    double[] pos = ModelPosition(image, x, y, TILE_SIZE, actualArity);
 
                     // for the 0-ary, 1-ary, ... maxN-ary models:
                     for (int n = 0; n < actualArity; n++)
@@ -196,7 +220,49 @@ namespace JpegEBooks.ImageModel
                 }
 
                 // gen everything else based on min(x, maxN)-ary model
+                for (int xTile = 1; xTile < wTiles; xTile++)
+                {
+                    Console.Write("{0}, {1}: ", xTile, yTile);
 
+                    int actualMaxArity = Math.Min(xTile, this.maxN);
+
+                    for (int modelArity = actualMaxArity; modelArity >= 1; modelArity--)
+                    {
+                        double[] pos = ModelPosition(img, xTile, yTile, TILE_SIZE, modelArity);
+                        SuccessorTileModel[] submodels = this.naryModels[modelArity - 1].RangeSearch(pos, 10);
+                        
+                        if (submodels.Length > 0)
+                        {
+                            // we found a submodel to choose from; generate
+                            SuccessorTileModel mergedModel = new SuccessorTileModel();
+
+                            foreach (SuccessorTileModel model in submodels)
+                            {
+                                mergedModel.AddAll(model, 1.0);
+                            }
+
+                            tile = mergedModel.ChooseRandomly(rng);
+
+                            for (int ypx = 0; ypx < TILE_SIZE; ypx++)
+                            {
+                                for (int xpx = 0; xpx < TILE_SIZE; xpx++)
+                                {
+                                    img.SetPixel(xTile * TILE_SIZE + xpx, yTile * TILE_SIZE + ypx, tile[xpx, ypx]);
+                                }
+                            }
+
+                            Console.Write("! ({0})", submodels.Length);
+                        }
+                        else
+                        {
+                            // no submodel found; try a lower arity
+                            Console.Write("?");
+                            continue;
+                        }
+                    }
+
+                    Console.WriteLine();
+                }
             }
 
             // build dep graph for generating image
@@ -213,7 +279,7 @@ namespace JpegEBooks.ImageModel
 
         private readonly int maxN;
         private SuccessorTileModel nullaryModel;
-        private KDMap<double, SuccessorTileModel>[] naryModels;
+        private KDMap<SuccessorTileModel>[] naryModels;
     }
 }
 

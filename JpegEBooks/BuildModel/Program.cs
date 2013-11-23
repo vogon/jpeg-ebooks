@@ -20,7 +20,7 @@ namespace BuildModel
 
                 m.LoadImage(bmp);
 
-                Bitmap test = m.GenImage(1, 20);
+                Bitmap test = m.GenImage(100, 50);
                 test.Save(".\\output.png");
             }
 		}

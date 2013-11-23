@@ -33,6 +33,7 @@
     <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Digraph.cs" />
     <Compile Include="KDTree.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Model.cs" />

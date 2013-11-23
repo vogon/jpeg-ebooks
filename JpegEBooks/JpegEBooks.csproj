@@ -32,15 +32,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="Tweetinvi">
-      <HintPath>..\bin\Tweetinvi.dll</HintPath>
-    </Reference>
-    <Reference Include="TwitterToken">
-      <HintPath>..\bin\TwitterToken.dll</HintPath>
-    </Reference>
-    <Reference Include="TweetinCore">
-      <HintPath>..\bin\TweetinCore.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />

@@ -54,6 +54,11 @@ namespace JpegEBooks.ImageModel
             }
         }
 
+        public int Count()
+        {
+            return (this.root != null) ? this.root.Count() : 0;
+        }
+
         private class Node
         {
             public Node(Coord[] position, V value)
@@ -162,7 +167,25 @@ namespace JpegEBooks.ImageModel
                     }
                 }
             }
+            
+            public int Count()
+            {
+                int accum = 1;
+
+                if (this.Left != null)
+                {
+                    accum += this.Left.Count();
+                }
+
+                if (this.Right != null)
+                {
+                    accum += this.Right.Count();
+                }
+
+                return accum;
+            }
         }
+
 
         private readonly int k;
         private Node root;

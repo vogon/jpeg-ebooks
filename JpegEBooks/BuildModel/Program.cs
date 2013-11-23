@@ -16,9 +16,12 @@ namespace BuildModel
             else
             {
                 Bitmap bmp = new Bitmap(args[0]);
-                MarkovModel mm = new MarkovModel(2, Neighborhoods.VonNeumann);
+                Model m = new Model(2);
 
-                mm.LoadFromImage(bmp);
+                m.LoadImage(bmp);
+
+                Bitmap test = m.GenImage(1, 20);
+                test.Save(".\\output.png");
             }
 		}
 	}

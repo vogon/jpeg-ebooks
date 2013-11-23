@@ -23,7 +23,7 @@ namespace JpegEBooks.ImageModel
         {
             public SuccessorTileModel()
             {
-                this.counts = new Dictionary<Color[,], int>(TwoDColorArrayStructuralEqualityComparer.Instance);
+                this.counts = new Dictionary<Color[,], int>(TwoDimensionalArrayStructuralEqualityComparer<Color>.Instance);
                 this.grandTotal = 0;
             }
 
@@ -62,56 +62,6 @@ namespace JpegEBooks.ImageModel
 
             private Dictionary<Color[,], int> counts;
             private int grandTotal;
-        }
-
-        private class TwoDColorArrayStructuralEqualityComparer : IEqualityComparer<Color[,]>
-        {
-            static TwoDColorArrayStructuralEqualityComparer()
-            {
-                Instance = new TwoDColorArrayStructuralEqualityComparer();
-            }
-
-            public static TwoDColorArrayStructuralEqualityComparer Instance { get; private set; }
-
-            private TwoDColorArrayStructuralEqualityComparer() { }
-
-            public bool Equals(Color[,] x, Color[,] y)
-            {
-                if (x.GetLowerBound(0) != y.GetLowerBound(0)) return false;
-                if (x.GetUpperBound(0) != y.GetUpperBound(0)) return false;
-                if (x.GetLowerBound(1) != y.GetLowerBound(1)) return false;
-                if (x.GetUpperBound(1) != y.GetUpperBound(1)) return false;
-
-                for (int j = x.GetLowerBound(1); j <= x.GetUpperBound(1); j++)
-                {
-                    for (int i = x.GetLowerBound(0); i <= x.GetUpperBound(0); i++)
-                    {
-                        if (x[i, j] != y[i, j]) return false;
-                    }
-                }
-
-                return true;
-            }
-
-            public int GetHashCode(Color[,] obj)
-            {
-                int hash = 0;
-
-                hash += obj.GetLowerBound(0).GetHashCode();
-                hash += obj.GetUpperBound(0).GetHashCode();
-                hash += obj.GetLowerBound(1).GetHashCode();
-                hash += obj.GetUpperBound(1).GetHashCode();
-
-                for (int j = obj.GetLowerBound(1); j <= obj.GetUpperBound(1); j++)
-                {
-                    for (int i = obj.GetLowerBound(0); i <= obj.GetUpperBound(0); i++)
-                    {
-                        hash += obj[i, j].GetHashCode();
-                    }
-                }
-
-                return hash;
-            }
         }
 
         private int TILE_SIZE = 4;

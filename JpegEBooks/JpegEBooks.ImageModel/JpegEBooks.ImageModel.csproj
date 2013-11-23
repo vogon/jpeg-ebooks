@@ -37,6 +37,7 @@
     <Compile Include="KDTree.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Model.cs" />
+    <Compile Include="TwoDimensionalArrayStructuralEqualityComparer.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

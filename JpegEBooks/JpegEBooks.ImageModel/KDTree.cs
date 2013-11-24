@@ -71,6 +71,11 @@ namespace JpegEBooks.ImageModel
             return (this.root != null) ? this.root.Count() : 0;
         }
 
+        public int Height()
+        {
+            return (this.root != null) ? this.root.Height() : 0;
+        }
+
         private class Node
         {
             public Node(double[] position, V value)
@@ -257,6 +262,23 @@ namespace JpegEBooks.ImageModel
                 }
 
                 return accum;
+            }
+
+            public int Height()
+            {
+                int maxSubtreeHeight = 0;
+
+                if (this.Left != null)
+                {
+                    maxSubtreeHeight = Math.Max(maxSubtreeHeight, this.Left.Height());
+                }
+
+                if (this.Right != null)
+                {
+                    maxSubtreeHeight = Math.Max(maxSubtreeHeight, this.Right.Height());
+                }
+
+                return maxSubtreeHeight + 1;
             }
         }
 

@@ -92,7 +92,7 @@ namespace JpegEBooks.ImageModel
                     double[] pos = ModelPosition(image, x, y, TILE_SIZE, actualArity);
 
                     // for the 0-ary, 1-ary, ... maxN-ary models:
-                    for (int n = 0; n < actualArity; n++)
+                    for (int n = 0; n <= actualArity; n++)
                     {
                         if (n == 0)
                         {
@@ -166,7 +166,7 @@ namespace JpegEBooks.ImageModel
                     for (int modelArity = actualMaxArity; modelArity >= 1; modelArity--)
                     {
                         double[] pos = ModelPosition(img, xTile, yTile, TILE_SIZE, modelArity);
-                        SuccessorTileModel[] submodels = this.naryModels[modelArity - 1].RangeSearch(pos, 10);
+                        SuccessorTileModel[] submodels = this.naryModels[modelArity - 1].RangeSearch(pos, 5);
                         
                         if (submodels.Length > 0)
                         {
@@ -189,6 +189,7 @@ namespace JpegEBooks.ImageModel
                             }
 
                             Console.Write("! ({0})", submodels.Length);
+                            break;
                         }
                         else
                         {

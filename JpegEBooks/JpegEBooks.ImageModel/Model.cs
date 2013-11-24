@@ -19,69 +19,6 @@ namespace JpegEBooks.ImageModel
             }
         }
 
-        private class SuccessorTileModel
-        {
-            public SuccessorTileModel()
-            {
-                this.counts = new Dictionary<Color[,], double>(TwoDimensionalArrayStructuralEqualityComparer<Color>.Instance);
-                this.grandTotal = 0;
-            }
-
-            public void Add(Color[,] tile) 
-            {
-                this.AddWeight(tile, 1.0);
-            }
-
-            private void AddWeight(Color[,] tile, double weight)
-            {
-                if (this.counts.ContainsKey(tile))
-                {
-                    this.counts[tile] += weight;
-                }
-                else
-                {
-                    this.counts[tile] = weight;
-                }
-
-                this.grandTotal += weight;
-            }
-
-            /// <summary>
-            ///     Add every element from the other model, with weights multiplied by the rate
-            /// </summary>
-            /// <param name="model">the model whose elements should be added</param>
-            /// <param name="rate">the rate to weight model's elements by, with 1.0 the default</param>
-            public void AddAll(SuccessorTileModel model, double rate = 1.0)
-            {
-                foreach (KeyValuePair<Color[,], double> kvp in model.counts)
-                {
-                    this.AddWeight(kvp.Key, kvp.Value * rate);
-                }
-            }
-
-            public Color[,] ChooseRandomly(Random rng)
-            {
-                double rand = rng.NextDouble() * grandTotal;
-
-                foreach (KeyValuePair<Color[,], double> tile in this.counts)
-                {
-                    if (rand < tile.Value)
-                    {
-                        return tile.Key;
-                    }
-                    else
-                    {
-                        rand -= tile.Value;
-                    }
-                }
-
-                return null;
-            }
-
-            private Dictionary<Color[,], double> counts;
-            private double grandTotal;
-        }
-
         private int TILE_SIZE = 4;
 
         private Color[,] ExtractSubimage(Bitmap image, int tileSize, int tileX, int tileY)

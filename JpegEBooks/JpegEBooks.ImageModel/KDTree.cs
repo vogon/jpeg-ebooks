@@ -209,35 +209,35 @@ namespace JpegEBooks.ImageModel
                 }
 
                 // recurse to subtrees
-                // "before" subtree: if position + radius is before the root, prune
-                // "after" subtree: if position - radius is after the root, prune
+                // "before" subtree: if position - radius is after the root, prune
+                // "after" subtree: if position + radius is before the root, prune
                 int dimension = depth % k;
                 double location = this.Position[dimension];
                 double searchLocation = position[dimension];
 
-                //if (searchLocation + radius >= location)
-                //{
+                if (searchLocation - radius <= location)
+                {
                     if (this.Left != null)
                     {
                         values.AddRange(this.Left.RangeSearch(depth + 1, k, position, radius));
                     }
-                //}
-                //else
-                //{
-                //    //Console.WriteLine("pruned left subtree ({0} + {1} < {2})", searchLocation, radius, location);
-                //}
+                }
+                else
+                {
+                    //Console.WriteLine("pruned left subtree ({0} + {1} < {2})", searchLocation, radius, location);
+                }
 
-                //if (searchLocation - radius <= location)
-                //{
+                if (searchLocation + radius >= location)
+                {
                     if (this.Right != null)
                     {
                         values.AddRange(this.Right.RangeSearch(depth + 1, k, position, radius));
                     }
-                //}
-                //else
-                //{
-                //    //Console.WriteLine("pruned right subtree ({0} - {1} > {2})", searchLocation, radius, location);
-                //}
+                }
+                else
+                {
+                    //Console.WriteLine("pruned right subtree ({0} - {1} > {2})", searchLocation, radius, location);
+                }
 
                 return values;
             }

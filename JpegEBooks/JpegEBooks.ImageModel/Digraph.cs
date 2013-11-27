@@ -25,16 +25,25 @@ namespace JpegEBooks.ImageModel
 
         public void DrawEdge(Vertex from, Vertex to)
         {
-            
+            Debug.Assert(this.Contains(from) && this.Contains(to));
+            Vertex.DrawEdge(from, to);
         }
 
-        private HashSet<Vertex> Vertices { get; set; }
+        public void EraseEdge(Vertex from, Vertex to)
+        {
+            Debug.Assert(this.Contains(from) && this.Contains(to));
+            Vertex.EraseEdge(from, to);
+        }
+
+        public ISet<Vertex> Vertices { get; private set; }
 
         public class Vertex
         {
             public Vertex(VertexLabel label) 
             {
-                this.Label = Label;
+                this.Label = label;
+                this.InEdges = new HashSet<Vertex>();
+                this.OutEdges = new HashSet<Vertex>();
             }
 
             public Vertex[] Predecessors
@@ -42,6 +51,14 @@ namespace JpegEBooks.ImageModel
                 get
                 {
                     return InEdges.ToArray();
+                }
+            }
+
+            public int InDegree
+            {
+                get
+                {
+                    return InEdges.Count;
                 }
             }
 
@@ -53,10 +70,30 @@ namespace JpegEBooks.ImageModel
                 }
             }
 
+            public int OutDegree
+            {
+                get
+                {
+                    return OutEdges.Count;
+                }
+            }
+
+            public static void DrawEdge(Vertex from, Vertex to)
+            {
+                to.InEdges.Add(from);
+                from.OutEdges.Add(to);
+            }
+
+            public static void EraseEdge(Vertex from, Vertex to)
+            {
+                to.InEdges.Remove(from);
+                from.OutEdges.Remove(to);
+            }
+
             public VertexLabel Label { get; private set; }
 
-            private IList<Vertex> InEdges { get; set; }
-            private IList<Vertex> OutEdges { get; set; }
+            private ISet<Vertex> InEdges { get; set; }
+            private ISet<Vertex> OutEdges { get; set; }
         }
     }
 }

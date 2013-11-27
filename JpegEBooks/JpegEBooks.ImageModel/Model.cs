@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq;
 
 namespace JpegEBooks.ImageModel
 {
@@ -19,9 +20,9 @@ namespace JpegEBooks.ImageModel
             }
         }
 
-        private int TILE_SIZE = 4;
+        private int TILE_SIZE = 1;
 
-        private Color[,] ExtractSubimage(Bitmap image, int tileSize, int tileX, int tileY)
+        private Color[,] ExtractTile(Bitmap image, int tileSize, int tileX, int tileY)
         {
             Color[,] subimage = new Color[tileSize, tileSize];
 
@@ -34,6 +35,17 @@ namespace JpegEBooks.ImageModel
             }
 
             return subimage;
+        }
+
+        private void BlitTile(Bitmap image, Color[,] tile, int tileSize, int tileX, int tileY)
+        {
+            for (int ypx = 0; ypx < tileSize; ypx++)
+            {
+                for (int xpx = 0; xpx < tileSize; xpx++)
+                {
+                    image.SetPixel(tileX * tileSize + xpx, tileY * tileSize + ypx, tile[xpx, ypx]);
+                }
+            }
         }
 
         private double[] AverageColor(Bitmap image, int tileSize, int tileX, int tileY)
@@ -75,142 +87,210 @@ namespace JpegEBooks.ImageModel
             return pos;
         }
 
+        private class TileGenerationRecord
+        {
+            public TileGenerationRecord(Point point, bool isGenerated)
+            {
+                this.Point = point;
+                this.IsGenerated = isGenerated;
+            }
+
+            public Point Point { get; set; }
+            public bool IsGenerated { get; set; }
+        }
+
+        private Digraph<TileGenerationRecord> MakeDependencyGraph(int w, int h, int tileSize)
+        {
+            Digraph<TileGenerationRecord> depGraph = new Digraph<TileGenerationRecord>();
+
+            int wTile = w / tileSize, hTile = h / tileSize;
+            Digraph<TileGenerationRecord>.Vertex[,] vertices = new Digraph<TileGenerationRecord>.Vertex[wTile, hTile];
+
+            // build vertices
+            for (int y = 0; y < hTile; y++)
+            {
+                for (int x = 0; x < wTile; x++)
+                {
+                    vertices[x, y] = new Digraph<TileGenerationRecord>.Vertex(new TileGenerationRecord(new Point(x, y), false));
+                    depGraph.Add(vertices[x, y]);
+                }
+            }
+
+            // build edges
+            for (int y = 0; y < hTile; y++)
+            {
+                for (int x = 0; x < wTile; x++)
+                {
+                    if (x != 0) depGraph.DrawEdge(vertices[x - 1, y], vertices[x, y]);
+                    if (y != 0) depGraph.DrawEdge(vertices[x, y - 1], vertices[x, y]);
+                }
+            }
+
+            return depGraph;
+        }
+
         public void LoadImage(Bitmap image)
         {
-            // ersatz implementation for right now:
-            // - tiles depend on tiles to the left of them only
-            // - no inter-row dependency
-            for (int y = 0; (y + 1) * TILE_SIZE <= image.Height; y++)
-            {
-                for (int x = 0; (x + 1) * TILE_SIZE <= image.Width; x++)
-                {
-                    // extract this tile
-                    Color[,] thisSubimage = ExtractSubimage(image, TILE_SIZE, x, y);
-            
-                    // figure out how many tiles of color data are actually available
-                    int actualArity = Math.Min(x, this.maxN);
-                    double[] pos = ModelPosition(image, x, y, TILE_SIZE, actualArity);
+            // build dep graph for loading image
+            Digraph<TileGenerationRecord> depGraph = MakeDependencyGraph(image.Width, image.Height, TILE_SIZE);
 
-                    // for the 0-ary, 1-ary, ... maxN-ary models:
-                    for (int n = 0; n <= actualArity; n++)
+            foreach (Digraph<TileGenerationRecord>.Vertex v in depGraph.Vertices)
+            {
+                List<double[]> positions =
+                    GetPredecessorModelPositions(image, TILE_SIZE, v, new double[] { }, this.maxN, 1, false, false);
+                Color[,] thisSubimage = ExtractTile(image, TILE_SIZE, v.Label.Point.X, v.Label.Point.Y);
+
+                foreach (double[] pos in positions)
+                {
+                    if (pos.Length == 0)
                     {
-                        if (n == 0)
+                        this.nullaryModel.Add(thisSubimage);
+                    }
+                    else
+                    {
+                        int n = pos.Length / 3;
+                        SuccessorTileModel model = this.naryModels[n - 1].Get(pos);
+
+                        if (model == null)
                         {
-                            this.nullaryModel.Add(thisSubimage);
+                            model = new SuccessorTileModel();
+                            model.Add(thisSubimage);
+                            this.naryModels[n - 1].Insert(pos, model);
                         }
                         else
                         {
-                            // the i'th n-ary model is the (i + 1)-ary model, since the nullary model is separate
-                            int modelIdx = n - 1;
-
-                            double[] partialPos = new double[n * 3];
-                            Array.Copy(pos, partialPos, n * 3);
-
-                            SuccessorTileModel model = this.naryModels[modelIdx].Get(partialPos);
-
-                            if (model == null)
-                            {
-                                model = new SuccessorTileModel();
-                                model.Add(thisSubimage);
-                                this.naryModels[modelIdx].Insert(partialPos, model);
-                            }
-                            else
-                            {
-                                model.Add(thisSubimage);
-                            }
+                            model.Add(thisSubimage);
                         }
                     }
                 }
             }
+        }
+        
+        private List<double[]> GetPredecessorModelPositions(
+            Bitmap image, int tileSize, Digraph<TileGenerationRecord>.Vertex v, double[] partialPos, 
+            int nLeft, int nSkip, bool suppressSubpaths, bool suppressUngenerated)
+        {
+            List<double[]> positions = new List<double[]>();
 
-            // build dep graph for loading image
+            if (nSkip != 0)
+            {
+                // skip this node and go to its predecessors
+                if (v.Predecessors.Length == 0)
+                {
+                    positions.Add(partialPos);
+                }
 
-            // for each tile t:
-            //     load tile into models:
-            //         traverse dep graph depth-first with depth limit maxN:
-            //             visit each predecessor of t, storing path
-            //             for n = 0 upto path length:
-            //                 pos = []
-            //                 for each predecessor on the first n steps of path:
-            //                     r, g, b = extract color from tile
-            //                     pos << r, g, b
-            //                 add t to position pos in the n-ary model
+                foreach (Digraph<TileGenerationRecord>.Vertex pred in v.Predecessors)
+                {
+                    if (pred.Label.IsGenerated || !suppressUngenerated)
+                    {
+                        positions.AddRange(GetPredecessorModelPositions(
+                            image, tileSize, pred, partialPos, nLeft, nSkip - 1, suppressSubpaths, suppressUngenerated
+                            ));
+                    }
+                    else
+                    {
+                        Console.WriteLine("hit un-generated tile at {0}, {1}", pred.Label.Point.X, pred.Label.Point.Y);
+                    }
+                }
+            }
+            else if (nLeft != 0)
+            {
+                // add this node's position to the partial and go to its predecessors
+                if (!suppressSubpaths || v.Predecessors.Length == 0)
+                {
+                    positions.Add(partialPos);
+                }
+
+                double[] thisPosition = AverageColor(image, tileSize, v.Label.Point.X, v.Label.Point.Y);
+                double[] nextPartial = new double[partialPos.Length + thisPosition.Length];
+
+                Array.Copy(partialPos, nextPartial, partialPos.Length);
+                Array.Copy(thisPosition, 0, nextPartial, partialPos.Length, thisPosition.Length);
+
+                foreach (Digraph<TileGenerationRecord>.Vertex pred in v.Predecessors)
+                {
+                    if (pred.Label.IsGenerated || !suppressUngenerated)
+                    {
+                        positions.AddRange(GetPredecessorModelPositions(
+                            image, tileSize, pred, nextPartial, nLeft - 1, nSkip, suppressSubpaths, suppressUngenerated
+                            ));
+                    }
+                    else
+                    {
+                        Console.WriteLine("hit un-generated tile at {0}, {1}", pred.Label.Point.X, pred.Label.Point.Y);
+                    }
+                }
+            }
+            else
+            {
+                // done
+                positions.Add(partialPos);
+            }
+
+            return positions;
         }
 
         public Bitmap GenImage(int wTiles, int hTiles)
         {
-            Bitmap img = new Bitmap(wTiles * TILE_SIZE, hTiles * TILE_SIZE);
+            int w = wTiles * TILE_SIZE, h = hTiles * TILE_SIZE;
+            Bitmap img = new Bitmap(w, h);
             Random rng = new Random();
+            
+            Digraph<TileGenerationRecord> depGraph = MakeDependencyGraph(w, h, TILE_SIZE);
 
-            // ersatz implementation
-            for (int yTile = 0; yTile < hTiles; yTile++)
+            while (true)
             {
-                // gen left edge based on 0-ary model
-                Color[,] tile = this.nullaryModel.ChooseRandomly(rng);
+                IEnumerable<Digraph<TileGenerationRecord>.Vertex> tilesToGenerate = 
+                    depGraph.Vertices
+                        .Where(v => (v.Label.IsGenerated == false))
+                        .OrderBy(v => v.Predecessors.Count(vv => !vv.Label.IsGenerated));
 
-                for (int ypx = 0; ypx < TILE_SIZE; ypx++)
+                if (tilesToGenerate.Count() == 0)
                 {
-                    for (int xpx = 0; xpx < TILE_SIZE; xpx++)
+                    break;
+                }
+                
+                Digraph<TileGenerationRecord>.Vertex nextTileToGenerate = tilesToGenerate.First();
+
+                Console.WriteLine("{0}, {1}", nextTileToGenerate.Label.Point.X, nextTileToGenerate.Label.Point.Y);
+
+                // actually generate the tile.
+                SuccessorTileModel mergedModel = new SuccessorTileModel();
+
+                // grab a list of all of the model positions represented by all the predecessors to this tile
+                List<double[]> positions = 
+                    GetPredecessorModelPositions(img, TILE_SIZE, nextTileToGenerate, new double[] { }, this.maxN, 1, true, true);
+
+                // look 'em all up
+                foreach (double[] pos in positions)
+                {
+                    if (pos.Length == 0)
                     {
-                        img.SetPixel(xpx, yTile * TILE_SIZE + ypx, tile[xpx, ypx]);
+                        mergedModel.AddAll(this.nullaryModel);
+                    }
+                    else
+                    {
+                        int n = pos.Length / 3;
+                        SuccessorTileModel[] models = this.naryModels[n - 1].RangeSearch(pos, 2);
+
+                        foreach (SuccessorTileModel model in models)
+                        {
+                            mergedModel.AddAll(model);
+                        }
                     }
                 }
 
-                // gen everything else based on min(x, maxN)-ary model
-                for (int xTile = 1; xTile < wTiles; xTile++)
+                // choose randomly from that model
+                Color[,] tile = mergedModel.ChooseRandomly(rng);
+
+                if (tile != null)
                 {
-                    Console.Write("{0}, {1}: ", xTile, yTile);
-
-                    int actualMaxArity = Math.Min(xTile, this.maxN);
-
-                    for (int modelArity = actualMaxArity; modelArity >= 1; modelArity--)
-                    {
-                        double[] pos = ModelPosition(img, xTile, yTile, TILE_SIZE, modelArity);
-                        SuccessorTileModel[] submodels = this.naryModels[modelArity - 1].RangeSearch(pos, 5);
-                        
-                        if (submodels.Length > 0)
-                        {
-                            // we found a submodel to choose from; generate
-                            SuccessorTileModel mergedModel = new SuccessorTileModel();
-
-                            foreach (SuccessorTileModel model in submodels)
-                            {
-                                mergedModel.AddAll(model, 1.0);
-                            }
-
-                            tile = mergedModel.ChooseRandomly(rng);
-
-                            for (int ypx = 0; ypx < TILE_SIZE; ypx++)
-                            {
-                                for (int xpx = 0; xpx < TILE_SIZE; xpx++)
-                                {
-                                    img.SetPixel(xTile * TILE_SIZE + xpx, yTile * TILE_SIZE + ypx, tile[xpx, ypx]);
-                                }
-                            }
-
-                            Console.Write("! ({0})", submodels.Length);
-                            break;
-                        }
-                        else
-                        {
-                            // no submodel found; try a lower arity
-                            Console.Write("?");
-                            continue;
-                        }
-                    }
-
-                    Console.WriteLine();
+                    BlitTile(img, tile, TILE_SIZE, nextTileToGenerate.Label.Point.X, nextTileToGenerate.Label.Point.Y);
                 }
+
+                nextTileToGenerate.Label.IsGenerated = true;
             }
-
-            // build dep graph for generating image
-
-            // toGenerate = min-heap of nodes in dep graph ordered by number of predecessors
-            // while toGenerate not empty:
-            //     next = head(toGenerate)
-            //     [TODO: code to JIT-generate any ungenerated predecessors goes here]
-            //     traverse dep graph depth-first with depth limit maxN:
-            //         [flergh, rest goes here later]
 
             return img;
         }

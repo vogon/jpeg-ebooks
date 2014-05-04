@@ -2,6 +2,9 @@ using JpegEBooks.ImageModel;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace BuildModel
 {
@@ -20,8 +23,10 @@ namespace BuildModel
 
                 m.LoadImage(bmp);
 
-                Bitmap test = m.GenImage(100, 50);
-                test.Save(".\\output.png");
+                IFormatter formatter = new BinaryFormatter();
+                
+                Stream stream = new FileStream(".\\output.model", FileMode.Create, FileAccess.Write);
+                formatter.Serialize(stream, m);
             }
 		}
 	}

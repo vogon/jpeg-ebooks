@@ -32,10 +32,17 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="JpegEBooks.ImageModel\JpegEBooks.ImageModel.csproj">
+      <Project>{172cd544-e10b-4ac1-9b5a-2d35a7ea23e2}</Project>
+      <Name>JpegEBooks.ImageModel</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

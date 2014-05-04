@@ -6,20 +6,21 @@ using System.Text;
 
 namespace JpegEBooks.ImageModel
 {
+    [Serializable]
     class SuccessorTileModel
     {
         public SuccessorTileModel()
         {
-            this.counts = new Dictionary<Color[,], double>(TwoDimensionalArrayStructuralEqualityComparer<Color>.Instance);
+            this.counts = new Dictionary<Color, double>();
             this.grandTotal = 0;
         }
 
-        public void Add(Color[,] tile)
+        public void Add(Color tile)
         {
             this.AddWeight(tile, 1.0);
         }
 
-        private void AddWeight(Color[,] tile, double weight)
+        private void AddWeight(Color tile, double weight)
         {
             if (this.counts.ContainsKey(tile))
             {
@@ -40,17 +41,17 @@ namespace JpegEBooks.ImageModel
         /// <param name="rate">the rate to weight model's elements by, with 1.0 the default</param>
         public void AddAll(SuccessorTileModel model, double rate = 1.0)
         {
-            foreach (KeyValuePair<Color[,], double> kvp in model.counts)
+            foreach (KeyValuePair<Color, double> kvp in model.counts)
             {
                 this.AddWeight(kvp.Key, kvp.Value * rate);
             }
         }
 
-        public Color[,] ChooseRandomly(Random rng)
+        public Color ChooseRandomly(Random rng)
         {
             double rand = rng.NextDouble() * grandTotal;
 
-            foreach (KeyValuePair<Color[,], double> tile in this.counts)
+            foreach (KeyValuePair<Color, double> tile in this.counts)
             {
                 if (rand < tile.Value)
                 {
@@ -62,10 +63,10 @@ namespace JpegEBooks.ImageModel
                 }
             }
 
-            return null;
+            return Color.Magenta;
         }
 
-        private Dictionary<Color[,], double> counts;
+        private Dictionary<Color, double> counts;
         private double grandTotal;
     }
 }

@@ -7,6 +7,7 @@ using System.Text;
 
 namespace JpegEBooks.ImageModel
 {
+    [Serializable]
     class KDMap<V>
     {
         public KDMap(int k)
@@ -14,7 +15,7 @@ namespace JpegEBooks.ImageModel
             this.k = k;
         }
 
-        public void Insert(double[] position, V value)
+        public void Insert(byte[] position, V value)
         {
             if (position.Length != this.k)
             {
@@ -33,7 +34,7 @@ namespace JpegEBooks.ImageModel
             }
         }
 
-        public V Get(double[] position)
+        public V Get(byte[] position)
         {
             if (this.root == null)
             {
@@ -54,7 +55,7 @@ namespace JpegEBooks.ImageModel
             }
         }
 
-        public V[] RangeSearch(double[] position, double radius)
+        public V[] RangeSearch(byte[] position, double radius)
         {
             if (this.root == null)
             {
@@ -76,22 +77,23 @@ namespace JpegEBooks.ImageModel
             return (this.root != null) ? this.root.Height() : 0;
         }
 
+        [Serializable]
         private class Node
         {
-            public Node(double[] position, V value)
+            public Node(byte[] position, V value)
             {
                 this.Position = position;
                 this.Value = value;
             }
 
-            public readonly double[] Position;
+            public readonly byte[] Position;
 
             public Node Left;
             public Node Right;
 
             public readonly V Value;
 
-            public Node Insert(int depth, int k, double[] position, V value)
+            public Node Insert(int depth, int k, byte[] position, V value)
             {
                 // check to make sure this node isn't already at the new node's position
                 if (StructuralComparisons.StructuralEqualityComparer.Equals(position, this.Position))
@@ -141,7 +143,7 @@ namespace JpegEBooks.ImageModel
                 }
             }
 
-            public Node Get(int depth, int k, double[] position)
+            public Node Get(int depth, int k, byte[] position)
             {
                 // check to see if we're already there
                 if (StructuralComparisons.StructuralEqualityComparer.Equals(position, this.Position))
@@ -185,7 +187,7 @@ namespace JpegEBooks.ImageModel
                 }
             }
 
-            public IList<Node> RangeSearch(int depth, int k, double[] position, double radius)
+            public IList<Node> RangeSearch(int depth, int k, byte[] position, double radius)
             {
                 //StringBuilder sb = new StringBuilder();
                 //sb.Append("[");
@@ -217,8 +219,8 @@ namespace JpegEBooks.ImageModel
                 // "before" subtree: if position - radius is after the root, prune
                 // "after" subtree: if position + radius is before the root, prune
                 int dimension = depth % k;
-                double location = this.Position[dimension];
-                double searchLocation = position[dimension];
+                byte location = this.Position[dimension];
+                byte searchLocation = position[dimension];
 
                 if (searchLocation - radius <= location)
                 {

@@ -6,6 +6,7 @@ using System.Linq;
 
 namespace JpegEBooks.ImageModel
 {
+    [Serializable]
     public class Model
     {
         public Model(int maxN)
@@ -20,73 +21,6 @@ namespace JpegEBooks.ImageModel
             }
         }
 
-        private int TILE_SIZE = 1;
-
-        private Color[,] ExtractTile(Bitmap image, int tileSize, int tileX, int tileY)
-        {
-            Color[,] subimage = new Color[tileSize, tileSize];
-
-            for (int ypx = 0; ypx < tileSize; ypx++)
-            {
-                for (int xpx = 0; xpx < tileSize; xpx++)
-                {
-                    subimage[xpx, ypx] = image.GetPixel(tileX * tileSize + xpx, tileY * tileSize + ypx);
-                }
-            }
-
-            return subimage;
-        }
-
-        private void BlitTile(Bitmap image, Color[,] tile, int tileSize, int tileX, int tileY)
-        {
-            for (int ypx = 0; ypx < tileSize; ypx++)
-            {
-                for (int xpx = 0; xpx < tileSize; xpx++)
-                {
-                    image.SetPixel(tileX * tileSize + xpx, tileY * tileSize + ypx, tile[xpx, ypx]);
-                }
-            }
-        }
-
-        private double[] AverageColor(Bitmap image, int tileSize, int tileX, int tileY)
-        {
-            double[] components = new double[3];
-            int n = 0;
-
-            for (int ypx = 0; ypx < tileSize; ypx++)
-            {
-                for (int xpx = 0; xpx < tileSize; xpx++)
-                {
-                    Color c = image.GetPixel(tileX * tileSize + xpx, tileY * tileSize + ypx);
-
-                    components[0] += c.R;
-                    components[1] += c.G;
-                    components[2] += c.B;
-                    n++;
-                }
-            }
-
-            components[0] /= n;
-            components[1] /= n;
-            components[2] /= n;
-
-            return components;
-        }
-
-        private double[] ModelPosition(Bitmap image, int xTile, int yTile, int tileSize, int modelArity)
-        {
-            double[] pos = new double[modelArity * 3];
-
-            for (int i = 1; i <= modelArity; i++)
-            {
-                double[] avgColor = AverageColor(image, TILE_SIZE, xTile - i, yTile);
-
-                Array.Copy(avgColor, 0, pos, (i - 1) * 3, 3);
-            }
-
-            return pos;
-        }
-
         private class TileGenerationRecord
         {
             public TileGenerationRecord(Point point, bool isGenerated)
@@ -99,11 +33,11 @@ namespace JpegEBooks.ImageModel
             public bool IsGenerated { get; set; }
         }
 
-        private Digraph<TileGenerationRecord> MakeDependencyGraph(int w, int h, int tileSize)
+        private Digraph<TileGenerationRecord> MakeDependencyGraph(int w, int h)
         {
             Digraph<TileGenerationRecord> depGraph = new Digraph<TileGenerationRecord>();
 
-            int wTile = w / tileSize, hTile = h / tileSize;
+            int wTile = w, hTile = h;
             Digraph<TileGenerationRecord>.Vertex[,] vertices = new Digraph<TileGenerationRecord>.Vertex[wTile, hTile];
 
             // build vertices
@@ -132,19 +66,20 @@ namespace JpegEBooks.ImageModel
         public void LoadImage(Bitmap image)
         {
             // build dep graph for loading image
-            Digraph<TileGenerationRecord> depGraph = MakeDependencyGraph(image.Width, image.Height, TILE_SIZE);
+            Digraph<TileGenerationRecord> depGraph = MakeDependencyGraph(image.Width, image.Height);
+            int nPixelsConsumed = 0;
 
             foreach (Digraph<TileGenerationRecord>.Vertex v in depGraph.Vertices)
             {
-                List<double[]> positions =
-                    GetPredecessorModelPositions(image, TILE_SIZE, v, new double[] { }, this.maxN, 1, false, false);
-                Color[,] thisSubimage = ExtractTile(image, TILE_SIZE, v.Label.Point.X, v.Label.Point.Y);
+                List<byte[]> positions =
+                    GetPredecessorModelPositions(image, 1, v, new byte[] { }, this.maxN, 1, false, false);
+                Color thisPixel = image.GetPixel(v.Label.Point.X, v.Label.Point.Y);
 
-                foreach (double[] pos in positions)
+                foreach (byte[] pos in positions)
                 {
                     if (pos.Length == 0)
                     {
-                        this.nullaryModel.Add(thisSubimage);
+                        this.nullaryModel.Add(thisPixel);
                     }
                     else
                     {
@@ -154,23 +89,33 @@ namespace JpegEBooks.ImageModel
                         if (model == null)
                         {
                             model = new SuccessorTileModel();
-                            model.Add(thisSubimage);
+                            model.Add(thisPixel);
                             this.naryModels[n - 1].Insert(pos, model);
                         }
                         else
                         {
-                            model.Add(thisSubimage);
+                            model.Add(thisPixel);
                         }
                     }
                 }
+
+                nPixelsConsumed++;
+
+                if (nPixelsConsumed % 10000 == 0)
+                {
+                    Console.Write(".");
+                    Console.Out.Flush();
+                }
             }
+
+            Console.WriteLine();
         }
         
-        private List<double[]> GetPredecessorModelPositions(
-            Bitmap image, int tileSize, Digraph<TileGenerationRecord>.Vertex v, double[] partialPos, 
+        private List<byte[]> GetPredecessorModelPositions(
+            Bitmap image, int tileSize, Digraph<TileGenerationRecord>.Vertex v, byte[] partialPos, 
             int nLeft, int nSkip, bool suppressSubpaths, bool suppressUngenerated)
         {
-            List<double[]> positions = new List<double[]>();
+            List<byte[]> positions = new List<byte[]>();
 
             if (nSkip != 0)
             {
@@ -202,8 +147,9 @@ namespace JpegEBooks.ImageModel
                     positions.Add(partialPos);
                 }
 
-                double[] thisPosition = AverageColor(image, tileSize, v.Label.Point.X, v.Label.Point.Y);
-                double[] nextPartial = new double[partialPos.Length + thisPosition.Length];
+                Color c = image.GetPixel(v.Label.Point.X, v.Label.Point.Y);
+                byte[] thisPosition = new byte[] { c.R, c.G, c.B };
+                byte[] nextPartial = new byte[partialPos.Length + thisPosition.Length];
 
                 Array.Copy(partialPos, nextPartial, partialPos.Length);
                 Array.Copy(thisPosition, 0, nextPartial, partialPos.Length, thisPosition.Length);
@@ -233,11 +179,11 @@ namespace JpegEBooks.ImageModel
 
         public Bitmap GenImage(int wTiles, int hTiles)
         {
-            int w = wTiles * TILE_SIZE, h = hTiles * TILE_SIZE;
+            int w = wTiles, h = hTiles;
             Bitmap img = new Bitmap(w, h);
             Random rng = new Random();
             
-            Digraph<TileGenerationRecord> depGraph = MakeDependencyGraph(w, h, TILE_SIZE);
+            Digraph<TileGenerationRecord> depGraph = MakeDependencyGraph(w, h);
 
             while (true)
             {
@@ -259,11 +205,11 @@ namespace JpegEBooks.ImageModel
                 SuccessorTileModel mergedModel = new SuccessorTileModel();
 
                 // grab a list of all of the model positions represented by all the predecessors to this tile
-                List<double[]> positions = 
-                    GetPredecessorModelPositions(img, TILE_SIZE, nextTileToGenerate, new double[] { }, this.maxN, 1, true, true);
+                List<byte[]> positions = 
+                    GetPredecessorModelPositions(img, 1, nextTileToGenerate, new byte[] { }, this.maxN, 1, true, true);
 
                 // look 'em all up
-                foreach (double[] pos in positions)
+                foreach (byte[] pos in positions)
                 {
                     if (pos.Length == 0)
                     {
@@ -282,11 +228,11 @@ namespace JpegEBooks.ImageModel
                 }
 
                 // choose randomly from that model
-                Color[,] tile = mergedModel.ChooseRandomly(rng);
+                Color c = mergedModel.ChooseRandomly(rng);
 
-                if (tile != null)
+                if (c != null)
                 {
-                    BlitTile(img, tile, TILE_SIZE, nextTileToGenerate.Label.Point.X, nextTileToGenerate.Label.Point.Y);
+                    img.SetPixel(nextTileToGenerate.Label.Point.X, nextTileToGenerate.Label.Point.Y, c);
                 }
 
                 nextTileToGenerate.Label.IsGenerated = true;
